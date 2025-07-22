@@ -346,24 +346,6 @@ export const TaskDetailsScreen: React.FC = () => {
     setPhotoViewerVisible(true);
   };
 
-  const renderPhoto = ({ item }: { item: string }) => (
-    <TouchableOpacity
-      style={styles.photoContainer}
-      onPress={() => handleViewPhoto(item)}
-    >
-      <Image
-        source={{ uri: getPhotoUri(item) }}
-        style={styles.photo}
-        resizeMode="cover"
-      />
-      <TouchableOpacity
-        style={styles.deletePhotoButton}
-        onPress={() => handleDeletePhoto(item)}
-      >
-        <Text style={styles.deletePhotoText}>×</Text>
-      </TouchableOpacity>
-    </TouchableOpacity>
-  );
 
   const renderPhotoViewer = () => (
     <Modal
@@ -519,14 +501,30 @@ export const TaskDetailsScreen: React.FC = () => {
 
         <View style={styles.field}>
           {task.photos && task.photos.length > 0 ? (
-            <FlatList
-              data={task.photos}
-              renderItem={renderPhoto}
-              keyExtractor={(item) => item}
-              numColumns={3}
-              style={styles.photosList}
-              contentContainerStyle={styles.photosContainer}
-            />
+            <View style={styles.photosContainer}>
+              {task.photos.map((photo, index) => (
+                <View key={photo} style={styles.photoContainer}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setSelectedPhotoUri(getPhotoUri(photo));
+                      setPhotoViewerVisible(true);
+                    }}
+                  >
+                    <Image
+                      source={{ uri: getPhotoUri(photo) }}
+                      style={styles.photo}
+                      resizeMode="cover"
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.deletePhotoButton}
+                    onPress={() => handleDeletePhoto(photo)}
+                  >
+                    <Text style={styles.deletePhotoText}>×</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
           ) : (
             <View style={styles.noPhotosContainer}>
               <Text style={styles.noPhotosText}>No photos added yet</Text>
@@ -719,12 +717,14 @@ const styles = StyleSheet.create({
     maxHeight: 300,
   },
   photosContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
+    justifyContent: 'flex-start',
   },
   photoContainer: {
-    flex: 1,
+    width: '30%', // Approximately 3 columns with gaps
     aspectRatio: 1,
-    margin: 4,
     position: 'relative',
     borderRadius: 8,
     overflow: 'hidden',

@@ -1,5 +1,17 @@
 import * as SQLite from 'expo-sqlite';
 import { Task, CreateTaskInput, UpdateTaskInput } from '../types/Task';
+
+// Database row type - photos are stored as JSON string
+interface TaskRow {
+  id: string;
+  title: string;
+  cropId?: string;
+  date: string;
+  notes?: string;
+  photos?: string; // JSON string in database
+  completed: number; // SQLite boolean as number
+  year: number;
+}
 import { initSettingsTable } from './settings';
 import { cleanupTaskPhotos } from './photoManager';
 
@@ -132,7 +144,7 @@ export const getTasks = async (year: number): Promise<Task[]> => {
     const database = await getDb();
     
     // Use getAllAsync to get all results as an array
-    const tasks = await database.getAllAsync<Task>(
+    const tasks = await database.getAllAsync<TaskRow>(
       'SELECT * FROM tasks WHERE year = ? ORDER BY date;',
       [year]
     );
@@ -140,7 +152,7 @@ export const getTasks = async (year: number): Promise<Task[]> => {
     return tasks.map(task => ({
       ...task,
       completed: Boolean(task.completed),
-      photos: task.photos ? JSON.parse(task.photos) : []
+      photos: task.photos ? JSON.parse(task.photos) as string[] : []
     }));
   } catch (error) {
     console.error('Error getting tasks:', error);
@@ -153,7 +165,7 @@ export const getTasksByCropId = async (cropId: string): Promise<Task[]> => {
   try {
     const database = await getDb();
     
-    const tasks = await database.getAllAsync<Task>(
+    const tasks = await database.getAllAsync<TaskRow>(
       'SELECT * FROM tasks WHERE cropId = ? ORDER BY date;',
       [cropId]
     );
@@ -161,7 +173,7 @@ export const getTasksByCropId = async (cropId: string): Promise<Task[]> => {
     return tasks.map(task => ({
       ...task,
       completed: Boolean(task.completed),
-      photos: task.photos ? JSON.parse(task.photos) : []
+      photos: task.photos ? JSON.parse(task.photos) as string[] : []
     }));
   } catch (error) {
     console.error('Error getting tasks by crop:', error);
@@ -206,7 +218,7 @@ export const getTaskById = async (id: string): Promise<Task> => {
     const database = await getDb();
     
     // Use getFirstAsync to get a single row
-    const task = await database.getFirstAsync<Task>(
+    const task = await database.getFirstAsync<TaskRow>(
       'SELECT * FROM tasks WHERE id = ?;',
       [id]
     );
@@ -218,7 +230,7 @@ export const getTaskById = async (id: string): Promise<Task> => {
     return {
       ...task,
       completed: Boolean(task.completed),
-      photos: task.photos ? JSON.parse(task.photos) : []
+      photos: task.photos ? JSON.parse(task.photos) as string[] : []
     };
   } catch (error) {
     console.error('Error getting task by id:', error);

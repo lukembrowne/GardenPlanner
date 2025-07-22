@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx expo install:*)"
+      "Bash(npx expo install:*)",
+      "Bash(npx tsc:*)"
     ],
     "deny": []
   }

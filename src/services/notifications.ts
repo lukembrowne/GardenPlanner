@@ -10,6 +10,8 @@ Notifications.setNotificationHandler({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
   }),
 });
 
@@ -97,17 +99,17 @@ export const scheduleWeeklyNotification = async () => {
       trigger: {
         type: 'timeInterval',
         seconds: 1, // For testing, will be replaced with weekly schedule
-      },
+      } as Notifications.TimeIntervalTriggerInput,
     });
 
     // Schedule the weekly notification
     await Notifications.scheduleNotificationAsync({
       content: notificationContent,
       trigger: {
+        type: 'date',
         date: nextSunday,
         repeats: true,
-        seconds: 7 * 24 * 60 * 60, // 7 days in seconds
-      },
+      } as unknown as Notifications.DateTriggerInput,
     });
 
     console.log('Weekly notification scheduled for:', nextSunday);
@@ -156,8 +158,9 @@ export const scheduleTestNotification = async () => {
     await Notifications.scheduleNotificationAsync({
     content: notificationContent,
     trigger: {
+        type: 'date',
         date: fiveSecondsFromNow,
-    },
+    } as unknown as Notifications.DateTriggerInput,
     });
 
     console.log("Time now is:", new Date());
