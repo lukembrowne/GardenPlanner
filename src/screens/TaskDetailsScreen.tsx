@@ -32,6 +32,7 @@ import {
   deletePhoto,
   cleanupTaskPhotos
 } from '../services/photoManager';
+import { PhotoLibraryOptions, PhotoSaveResult } from '../types/PhotoLibrary';
 
 type RootStackParamList = {
   Main: undefined;
@@ -263,14 +264,27 @@ export const TaskDetailsScreen: React.FC = () => {
 
   const handleTakePhoto = async () => {
     try {
-      const uri = await launchCamera();
-      if (uri) {
+      const settings = await getSettings();
+      const options: PhotoLibraryOptions = {
+        saveToLibrary: settings.saveToPhotoLibrary
+      };
+      
+      const result = await launchCamera(options);
+      if (result) {
         const taskIdForPhoto = task.id || 'temp_' + Date.now();
-        const filename = await savePhotoToStorage(uri, taskIdForPhoto);
+        const saveResult = await savePhotoToStorage(result.uri, taskIdForPhoto, options);
+        
         setTask(prev => ({
           ...prev,
-          photos: [...(prev.photos || []), filename]
+          photos: [...(prev.photos || []), saveResult.uri]
         }));
+        
+        // Show feedback if photo was saved to library
+        if (settings.saveToPhotoLibrary && saveResult.savedToLibrary) {
+          Alert.alert('Success', 'Photo saved to camera roll and task');
+        } else if (settings.saveToPhotoLibrary && saveResult.libraryError) {
+          Alert.alert('Partial Success', `Photo saved to task but failed to save to camera roll: ${saveResult.libraryError}`);
+        }
       }
     } catch (error) {
       console.error('Error taking photo:', error);
@@ -280,13 +294,19 @@ export const TaskDetailsScreen: React.FC = () => {
 
   const handlePickPhoto = async () => {
     try {
-      const uri = await launchImagePicker();
-      if (uri) {
+      const settings = await getSettings();
+      const options: PhotoLibraryOptions = {
+        saveToLibrary: false // Photos picked from library don't need to be re-saved
+      };
+      
+      const result = await launchImagePicker(options);
+      if (result) {
         const taskIdForPhoto = task.id || 'temp_' + Date.now();
-        const filename = await savePhotoToStorage(uri, taskIdForPhoto);
+        const saveResult = await savePhotoToStorage(result.uri, taskIdForPhoto);
+        
         setTask(prev => ({
           ...prev,
-          photos: [...(prev.photos || []), filename]
+          photos: [...(prev.photos || []), saveResult.uri]
         }));
       }
     } catch (error) {
@@ -495,7 +515,9 @@ export const TaskDetailsScreen: React.FC = () => {
               <Text style={styles.addPhotoText}>+ Add Photo</Text>
             </TouchableOpacity>
           </View>
-          
+        </View>
+
+        <View style={styles.field}>
           {task.photos && task.photos.length > 0 ? (
             <FlatList
               data={task.photos}

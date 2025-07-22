@@ -7,6 +7,7 @@ interface GardenSettings {
   frostEndDate: string;
   currentYear: number;
   notificationsEnabled: boolean;
+  saveToPhotoLibrary: boolean;
 }
 
 // Get the database connection
@@ -30,7 +31,8 @@ export const initSettingsTable = async (): Promise<void> => {
         frost_start_date TEXT NOT NULL,
         frost_end_date TEXT NOT NULL,
         current_year INTEGER NOT NULL,
-        notifications_enabled INTEGER NOT NULL DEFAULT 1
+        notifications_enabled INTEGER NOT NULL DEFAULT 1,
+        save_to_photo_library INTEGER NOT NULL DEFAULT 0
       );
     `);
     
@@ -51,6 +53,7 @@ export const getSettings = async (): Promise<GardenSettings> => {
       frost_end_date: string;
       current_year: number;
       notifications_enabled: number;
+      save_to_photo_library: number;
     }>('SELECT * FROM settings ORDER BY id DESC LIMIT 1;');
     
     if (settings) {
@@ -59,6 +62,7 @@ export const getSettings = async (): Promise<GardenSettings> => {
         frostEndDate: settings.frost_end_date,
         currentYear: settings.current_year,
         notificationsEnabled: Boolean(settings.notifications_enabled),
+        saveToPhotoLibrary: Boolean(settings.save_to_photo_library),
       };
     }
     
@@ -68,6 +72,7 @@ export const getSettings = async (): Promise<GardenSettings> => {
       frostEndDate: '05-11',   // May 11th
       currentYear: new Date().getFullYear(),
       notificationsEnabled: true,
+      saveToPhotoLibrary: false,
     };
     
     // Save default settings
@@ -85,9 +90,9 @@ export const saveSettings = async (settings: GardenSettings): Promise<void> => {
     
     // Use runAsync for write operations
     await database.runAsync(
-      `INSERT INTO settings (frost_start_date, frost_end_date, current_year, notifications_enabled)
-       VALUES (?, ?, ?, ?);`,
-      [settings.frostStartDate, settings.frostEndDate, settings.currentYear, settings.notificationsEnabled ? 1 : 0]
+      `INSERT INTO settings (frost_start_date, frost_end_date, current_year, notifications_enabled, save_to_photo_library)
+       VALUES (?, ?, ?, ?, ?);`,
+      [settings.frostStartDate, settings.frostEndDate, settings.currentYear, settings.notificationsEnabled ? 1 : 0, settings.saveToPhotoLibrary ? 1 : 0]
     );
     
     console.log('Settings saved successfully');

@@ -30,6 +30,7 @@ interface GardenSettings {
   frostEndDate: string;
   currentYear: number;
   notificationsEnabled: boolean;
+  saveToPhotoLibrary: boolean;
 }
 
 export const SettingsScreen: React.FC = () => {
@@ -39,6 +40,7 @@ export const SettingsScreen: React.FC = () => {
     frostEndDate: '04-15',
     currentYear: new Date().getFullYear(),
     notificationsEnabled: true,
+    saveToPhotoLibrary: false,
   });
   const [showFrostStartPicker, setShowFrostStartPicker] = useState(false);
   const [showFrostEndPicker, setShowFrostEndPicker] = useState(false);
@@ -245,6 +247,32 @@ export const SettingsScreen: React.FC = () => {
         >
           <Text style={styles.buttonText}>Send Test Notification</Text>
         </TouchableOpacity>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Photo Settings</Text>
+        
+        <View style={styles.notificationContainer}>
+          <Text style={styles.label}>Save to Photo Library</Text>
+          <Text style={styles.helpText}>Automatically save photos to your device's photo library when taking pictures</Text>
+          <View style={styles.switchContainer}>
+            <Switch
+              value={settings.saveToPhotoLibrary}
+              onValueChange={async (value) => {
+                try {
+                  const newSettings = { ...settings, saveToPhotoLibrary: value };
+                  setSettings(newSettings);
+                  await saveSettings(newSettings);
+                } catch (error) {
+                  console.error('Error updating photo library setting:', error);
+                  Alert.alert('Error', 'Failed to update photo library setting');
+                }
+              }}
+              trackColor={{ false: '#767577', true: '#81b0ff' }}
+              thumbColor={settings.saveToPhotoLibrary ? '#4CAF50' : '#f4f3f4'}
+            />
+          </View>
+        </View>
       </View>
 
       <View style={styles.section}>

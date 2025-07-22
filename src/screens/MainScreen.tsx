@@ -152,7 +152,7 @@ export const MainScreen: React.FC = () => {
     }, {});
 
     return Object.entries(groupedTasks)
-      .sort(([a], [b]) => a.localeCompare(b))
+      .sort(([a], [b]) => b.localeCompare(a))
       .map(([date, tasks]) => {
         try {
           const weekDate = new Date(date);
@@ -170,7 +170,7 @@ export const MainScreen: React.FC = () => {
               const dateA = parseDate(a.date);
               const dateB = parseDate(b.date);
               if (!dateA || !dateB) return 0;
-              return dateA.getTime() - dateB.getTime();
+              return dateB.getTime() - dateA.getTime();
             })
           };
         } catch (error) {

@@ -1,5 +1,7 @@
 import * as FileSystem from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
+import * as MediaLibrary from 'expo-media-library';
+import { PhotoLibraryOptions, PhotoSaveResult } from '../types/PhotoLibrary';
 
 const PHOTOS_DIR = FileSystem.documentDirectory + 'task_photos/';
 
@@ -15,7 +17,24 @@ export const initPhotoDirectory = async (): Promise<void> => {
   }
 };
 
-export const savePhotoToStorage = async (uri: string, taskId: string): Promise<string> => {
+export const saveToPhotoLibrary = async (uri: string): Promise<boolean> => {
+  try {
+    const { status } = await MediaLibrary.requestPermissionsAsync();
+    
+    if (status !== 'granted') {
+      console.warn('Photo library permission denied');
+      return false;
+    }
+
+    await MediaLibrary.saveToLibraryAsync(uri);
+    return true;
+  } catch (error) {
+    console.error('Error saving to photo library:', error);
+    return false;
+  }
+};
+
+export const savePhotoToStorage = async (uri: string, taskId: string, options?: PhotoLibraryOptions): Promise<PhotoSaveResult> => {
   try {
     await initPhotoDirectory();
     
@@ -28,7 +47,22 @@ export const savePhotoToStorage = async (uri: string, taskId: string): Promise<s
       to: destination
     });
     
-    return filename;
+    const result: PhotoSaveResult = {
+      uri: filename,
+      savedToLibrary: false
+    };
+    
+    // Also save to photo library if requested
+    if (options?.saveToLibrary) {
+      try {
+        const librarySuccess = await saveToPhotoLibrary(uri);
+        result.savedToLibrary = librarySuccess;
+      } catch (error) {
+        result.libraryError = error instanceof Error ? error.message : 'Failed to save to photo library';
+      }
+    }
+    
+    return result;
   } catch (error) {
     console.error('Error saving photo:', error);
     throw error;
@@ -63,7 +97,7 @@ export const cleanupTaskPhotos = async (photos: string[]): Promise<void> => {
   }
 };
 
-export const launchImagePicker = async (): Promise<string | null> => {
+export const launchImagePicker = async (options?: PhotoLibraryOptions): Promise<PhotoSaveResult | null> => {
   try {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     
@@ -79,7 +113,11 @@ export const launchImagePicker = async (): Promise<string | null> => {
     });
 
     if (!result.canceled) {
-      return result.assets[0].uri;
+      const uri = result.assets[0].uri;
+      return {
+        uri,
+        savedToLibrary: false
+      };
     }
     
     return null;
@@ -89,7 +127,7 @@ export const launchImagePicker = async (): Promise<string | null> => {
   }
 };
 
-export const launchCamera = async (): Promise<string | null> => {
+export const launchCamera = async (options?: PhotoLibraryOptions): Promise<PhotoSaveResult | null> => {
   try {
     const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
     
@@ -104,7 +142,23 @@ export const launchCamera = async (): Promise<string | null> => {
     });
 
     if (!result.canceled) {
-      return result.assets[0].uri;
+      const uri = result.assets[0].uri;
+      const photoResult: PhotoSaveResult = {
+        uri,
+        savedToLibrary: false
+      };
+      
+      // Also save to photo library if requested
+      if (options?.saveToLibrary) {
+        try {
+          const librarySuccess = await saveToPhotoLibrary(uri);
+          photoResult.savedToLibrary = librarySuccess;
+        } catch (error) {
+          photoResult.libraryError = error instanceof Error ? error.message : 'Failed to save to photo library';
+        }
+      }
+      
+      return photoResult;
     }
     
     return null;
