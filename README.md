@@ -1,6 +1,6 @@
 # Garden Planner
 
-A React Native app for planning and tracking garden tasks and observations.
+An Expo React Native app for planning and tracking garden tasks and observations.
 
 ## Features
 
@@ -23,14 +23,14 @@ A React Native app for planning and tracking garden tasks and observations.
 # Install dependencies
 npm install
 
-# Start the development server
-npm start
+# Start the Expo development server
+npx expo start
 
 # Run on iOS
-npm run ios
+npx expo start --ios
 
 # Run on Android
-npm run android
+npx expo start --android
 ```
 
 ## License
