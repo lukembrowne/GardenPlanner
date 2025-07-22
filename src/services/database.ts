@@ -1,10 +1,11 @@
 import * as SQLite from 'expo-sqlite';
-import { Task, CreateTaskInput, UpdateTaskInput } from '../types/Task';
+import { Task, CreateTaskInput, UpdateTaskInput, ItemType } from '../types/Task';
 
 // Database row type - photos are stored as JSON string
 interface TaskRow {
   id: string;
   title: string;
+  type: string;
   cropId?: string;
   date: string;
   notes?: string;
@@ -48,6 +49,7 @@ export const initDatabase = async (): Promise<boolean> => {
       CREATE TABLE IF NOT EXISTS tasks (
         id TEXT PRIMARY KEY,
         title TEXT NOT NULL,
+        type TEXT NOT NULL DEFAULT 'task',
         cropId TEXT,
         date TEXT NOT NULL,
         notes TEXT,
@@ -61,6 +63,13 @@ export const initDatabase = async (): Promise<boolean> => {
     // Add photos column to existing tasks table if it doesn't exist
     try {
       await database.execAsync(`ALTER TABLE tasks ADD COLUMN photos TEXT;`);
+    } catch (error) {
+      // Column already exists or other error - this is expected for existing tables
+    }
+
+    // Add type column to existing tasks table if it doesn't exist
+    try {
+      await database.execAsync(`ALTER TABLE tasks ADD COLUMN type TEXT NOT NULL DEFAULT 'task';`);
     } catch (error) {
       // Column already exists or other error - this is expected for existing tables
     }
@@ -107,11 +116,12 @@ export const createTask = async (task: CreateTaskInput): Promise<Task> => {
     
     // Use runAsync for write operations
     const result = await database.runAsync(
-      `INSERT INTO tasks (id, title, cropId, date, notes, photos, completed, year)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO tasks (id, title, type, cropId, date, notes, photos, completed, year)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         taskId,
         task.title,
+        task.type,
         task.cropId || null,
         task.date,
         task.notes || null,
@@ -125,6 +135,7 @@ export const createTask = async (task: CreateTaskInput): Promise<Task> => {
     return {
       id: taskId,
       title: task.title,
+      type: task.type,
       cropId: task.cropId,
       date: task.date,
       notes: task.notes,
@@ -151,11 +162,34 @@ export const getTasks = async (year: number): Promise<Task[]> => {
     
     return tasks.map(task => ({
       ...task,
+      type: (task.type || 'task') as ItemType,
       completed: Boolean(task.completed),
       photos: task.photos ? JSON.parse(task.photos) as string[] : []
     }));
   } catch (error) {
     console.error('Error getting tasks:', error);
+    throw error;
+  }
+};
+
+// Get tasks by type for a specific year
+export const getTasksByType = async (year: number, type: ItemType): Promise<Task[]> => {
+  try {
+    const database = await getDb();
+    
+    const tasks = await database.getAllAsync<TaskRow>(
+      'SELECT * FROM tasks WHERE year = ? AND type = ? ORDER BY date;',
+      [year, type]
+    );
+    
+    return tasks.map(task => ({
+      ...task,
+      type: (task.type || 'task') as ItemType,
+      completed: Boolean(task.completed),
+      photos: task.photos ? JSON.parse(task.photos) as string[] : []
+    }));
+  } catch (error) {
+    console.error('Error getting tasks by type:', error);
     throw error;
   }
 };
@@ -172,6 +206,7 @@ export const getTasksByCropId = async (cropId: string): Promise<Task[]> => {
     
     return tasks.map(task => ({
       ...task,
+      type: (task.type || 'task') as ItemType,
       completed: Boolean(task.completed),
       photos: task.photos ? JSON.parse(task.photos) as string[] : []
     }));
@@ -229,6 +264,7 @@ export const getTaskById = async (id: string): Promise<Task> => {
     
     return {
       ...task,
+      type: (task.type || 'task') as ItemType,
       completed: Boolean(task.completed),
       photos: task.photos ? JSON.parse(task.photos) as string[] : []
     };

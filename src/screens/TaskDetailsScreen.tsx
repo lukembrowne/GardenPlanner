@@ -19,7 +19,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RouteProp } from '@react-navigation/native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Dropdown } from 'react-native-element-dropdown';
-import { Task, CreateTaskInput } from '../types/Task';
+import { Task, CreateTaskInput, ItemType } from '../types/Task';
 import { createTask, getTaskById, updateTask } from '../services/database';
 import { Crop, getCrops, getCropById, calculatePlantingDate } from '../services/cropDatabase';
 import { getSettings } from '../services/settings';
@@ -36,7 +36,7 @@ import { PhotoLibraryOptions, PhotoSaveResult } from '../types/PhotoLibrary';
 
 type RootStackParamList = {
   Main: undefined;
-  TaskDetails: { taskId: string };
+  TaskDetails: { taskId: string; type?: ItemType };
   Settings: undefined;
 };
 
@@ -46,11 +46,12 @@ type TaskDetailsScreenRouteProp = RouteProp<RootStackParamList, 'TaskDetails'>;
 export const TaskDetailsScreen: React.FC = () => {
   const navigation = useNavigation<TaskDetailsScreenNavigationProp>();
   const route = useRoute<TaskDetailsScreenRouteProp>();
-  const { taskId } = route.params;
+  const { taskId, type } = route.params;
   const isNewTask = taskId === 'new';
 
   const [task, setTask] = useState<Partial<Task>>({
     title: '',
+    type: type || 'task',
     date: format(new Date(), 'MM/dd/yyyy'),
     notes: '',
     photos: [],
@@ -383,47 +384,83 @@ export const TaskDetailsScreen: React.FC = () => {
     <ScrollView style={styles.container}>
       <View style={styles.form}>
         <View style={styles.field}>
+          <Text style={styles.label}>Type *</Text>
+          <View style={styles.typeSelector}>
+            <TouchableOpacity
+              style={[
+                styles.typeButton,
+                task.type === 'task' && styles.typeButtonActive
+              ]}
+              onPress={() => setTask({ ...task, type: 'task' })}
+            >
+              <Text style={[
+                styles.typeButtonText,
+                task.type === 'task' && styles.typeButtonTextActive
+              ]}>
+                Task
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.typeButton,
+                task.type === 'note' && styles.typeButtonActive
+              ]}
+              onPress={() => setTask({ ...task, type: 'note' })}
+            >
+              <Text style={[
+                styles.typeButtonText,
+                task.type === 'note' && styles.typeButtonTextActive
+              ]}>
+                Note
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={styles.field}>
           <Text style={styles.label}>Title *</Text>
           <TextInput
             style={styles.input}
             value={task.title}
             onChangeText={(text) => setTask({ ...task, title: text })}
-            placeholder="Enter task title"
+            placeholder={task.type === 'note' ? 'Enter note title' : 'Enter task title'}
           />
         </View>
 
-        <View style={styles.field}>
-          <Text style={styles.label}>Crop (Optional)</Text>
-          <Dropdown
-            style={styles.dropdown}
-            placeholderStyle={styles.placeholderStyle}
-            selectedTextStyle={styles.selectedTextStyle}
-            inputSearchStyle={styles.inputSearchStyle}
-            iconStyle={styles.iconStyle}
-            data={crops.map(crop => ({ label: crop.name, value: crop.id }))}
-            maxHeight={300}
-            labelField="label"
-            valueField="value"
-            value={selectedCrop?.id}
-            onChange={handleCropSelect}
-            renderLeftIcon={() => (
-              <Text style={styles.icon}>🌱</Text>
-            )}
-            renderItem={item => (
-              <View style={styles.item}>
-                <Text style={styles.textItem}>{item.label}</Text>
-              </View>
-            )}
-            search
-            searchPlaceholder="Search crops..."
-            onChangeText={() => {}}
-            renderRightIcon={() => (
-              <Text style={styles.icon}>▼</Text>
-            )}
-            dropdownPosition="auto"
-            containerStyle={styles.dropdownContainer}
-          />
-        </View>
+        {task.type === 'task' && (
+          <View style={styles.field}>
+            <Text style={styles.label}>Crop (Optional)</Text>
+            <Dropdown
+              style={styles.dropdown}
+              placeholderStyle={styles.placeholderStyle}
+              selectedTextStyle={styles.selectedTextStyle}
+              inputSearchStyle={styles.inputSearchStyle}
+              iconStyle={styles.iconStyle}
+              data={crops.map(crop => ({ label: crop.name, value: crop.id }))}
+              maxHeight={300}
+              labelField="label"
+              valueField="value"
+              value={selectedCrop?.id}
+              onChange={handleCropSelect}
+              renderLeftIcon={() => (
+                <Text style={styles.icon}>🌱</Text>
+              )}
+              renderItem={item => (
+                <View style={styles.item}>
+                  <Text style={styles.textItem}>{item.label}</Text>
+                </View>
+              )}
+              search
+              searchPlaceholder="Search crops..."
+              onChangeText={() => {}}
+              renderRightIcon={() => (
+                <Text style={styles.icon}>▼</Text>
+              )}
+              dropdownPosition="auto"
+              containerStyle={styles.dropdownContainer}
+            />
+          </View>
+        )}
 
         <View style={styles.field}>
           <Text style={styles.label}>Date *</Text>
@@ -438,50 +475,52 @@ export const TaskDetailsScreen: React.FC = () => {
           {renderDatePicker()}
         </View>
 
-        <View style={styles.field}>
-          <View style={styles.switchContainer}>
-            <Text style={styles.label}>Enable Succession Planting</Text>
-            <Switch
-              value={enableSuccession}
-              onValueChange={setEnableSuccession}
-              trackColor={{ false: '#E0E0E0', true: '#4CAF50' }}
-            />
-          </View>
-          
-          {enableSuccession && (
-            <View style={styles.successionControls}>
-              <View style={styles.successionField}>
-                <Text style={styles.sublabel}>Weeks Between Plantings</Text>
-                <TextInput
-                  style={[styles.input, styles.numberInput]}
-                  value={successionInterval}
-                  onChangeText={setSuccessionInterval}
-                  keyboardType="number-pad"
-                  placeholder="2"
-                />
-              </View>
-              
-              <View style={styles.successionField}>
-                <Text style={styles.sublabel}>Number of Plantings</Text>
-                <TextInput
-                  style={[styles.input, styles.numberInput]}
-                  value={successionCount}
-                  onChangeText={setSuccessionCount}
-                  keyboardType="number-pad"
-                  placeholder="4"
-                />
-              </View>
+        {task.type === 'task' && (
+          <View style={styles.field}>
+            <View style={styles.switchContainer}>
+              <Text style={styles.label}>Enable Succession Planting</Text>
+              <Switch
+                value={enableSuccession}
+                onValueChange={setEnableSuccession}
+                trackColor={{ false: '#E0E0E0', true: '#4CAF50' }}
+              />
             </View>
-          )}
-        </View>
+            
+            {enableSuccession && (
+              <View style={styles.successionControls}>
+                <View style={styles.successionField}>
+                  <Text style={styles.sublabel}>Weeks Between Plantings</Text>
+                  <TextInput
+                    style={[styles.input, styles.numberInput]}
+                    value={successionInterval}
+                    onChangeText={setSuccessionInterval}
+                    keyboardType="number-pad"
+                    placeholder="2"
+                  />
+                </View>
+                
+                <View style={styles.successionField}>
+                  <Text style={styles.sublabel}>Number of Plantings</Text>
+                  <TextInput
+                    style={[styles.input, styles.numberInput]}
+                    value={successionCount}
+                    onChangeText={setSuccessionCount}
+                    keyboardType="number-pad"
+                    placeholder="4"
+                  />
+                </View>
+              </View>
+            )}
+          </View>
+        )}
 
         <View style={styles.field}>
-          <Text style={styles.label}>Notes</Text>
+          <Text style={styles.label}>{task.type === 'note' ? 'Description' : 'Notes'}</Text>
           <TextInput
             style={[styles.input, styles.notesInput]}
             value={task.notes}
             onChangeText={(text) => setTask({ ...task, notes: text })}
-            placeholder="Add any additional notes"
+            placeholder={task.type === 'note' ? 'Describe your garden observation' : 'Add any additional notes'}
             multiline
             numberOfLines={4}
           />
@@ -534,7 +573,7 @@ export const TaskDetailsScreen: React.FC = () => {
 
         <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
           <Text style={styles.saveButtonText}>
-            {isNewTask ? 'Create Task' : 'Save Changes'}
+            {isNewTask ? (task.type === 'note' ? 'Create Note' : 'Create Task') : 'Save Changes'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -797,5 +836,30 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     borderRadius: 8,
+  },
+  typeSelector: {
+    flexDirection: 'row',
+    backgroundColor: '#F0F0F0',
+    borderRadius: 8,
+    padding: 4,
+    gap: 4,
+  },
+  typeButton: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  typeButtonActive: {
+    backgroundColor: '#4CAF50',
+  },
+  typeButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#666666',
+  },
+  typeButtonTextActive: {
+    color: '#FFFFFF',
   },
 }); 

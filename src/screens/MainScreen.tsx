@@ -12,7 +12,7 @@ import {
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Task } from '../types/Task';
+import { Task, ItemType } from '../types/Task';
 import { TaskItem } from '../components/TaskItem';
 import { initDatabase, getTasks, updateTask, deleteTask } from '../services/database';
 import { getSettings } from '../services/settings';
@@ -20,7 +20,7 @@ import { Swipeable } from 'react-native-gesture-handler';
 
 type RootStackParamList = {
   MainScreen: undefined;
-  TaskDetails: { taskId: string };
+  TaskDetails: { taskId: string; type?: ItemType };
   Settings: undefined;
 };
 
@@ -31,6 +31,7 @@ export const MainScreen: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+  const [activeTab, setActiveTab] = useState<ItemType>('task');
 
   const loadTasks = async () => {
     try {
@@ -76,6 +77,7 @@ export const MainScreen: React.FC = () => {
   };
 
   const handleToggleComplete = async (task: Task) => {
+    if (task.type === 'note') return; // Notes can't be completed
     try {
       await updateTask(task.id, { completed: !task.completed });
       await loadTasks();
@@ -199,23 +201,57 @@ export const MainScreen: React.FC = () => {
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
-      <Text style={styles.emptyStateText}>No tasks for this year</Text>
+      <Text style={styles.emptyStateText}>No {activeTab}s for this year</Text>
       <TouchableOpacity
         style={styles.addButton}
-        onPress={() => navigation.navigate('TaskDetails', { taskId: 'new' })}
+        onPress={() => navigation.navigate('TaskDetails', { taskId: 'new', type: activeTab })}
       >
-        <Text style={styles.addButtonText}>Add New Task</Text>
+        <Text style={styles.addButtonText}>Add New {activeTab === 'task' ? 'Task' : 'Note'}</Text>
       </TouchableOpacity>
     </View>
   );
 
-  const sections = groupTasksByWeek(tasks);
+  // Filter tasks by active tab
+  const filteredTasks = tasks.filter(task => task.type === activeTab);
+  const sections = groupTasksByWeek(filteredTasks);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.title}>Garden Tasks</Text>
+        <Text style={styles.title}>Garden {activeTab === 'task' ? 'Tasks' : 'Notes'}</Text>
         <Text style={styles.year}>{currentYear}</Text>
+      </View>
+
+      {/* Tab Navigation */}
+      <View style={styles.tabContainer}>
+        <TouchableOpacity
+          style={[
+            styles.tabButton,
+            activeTab === 'task' && styles.tabButtonActive
+          ]}
+          onPress={() => setActiveTab('task')}
+        >
+          <Text style={[
+            styles.tabButtonText,
+            activeTab === 'task' && styles.tabButtonTextActive
+          ]}>
+            Tasks
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.tabButton,
+            activeTab === 'note' && styles.tabButtonActive
+          ]}
+          onPress={() => setActiveTab('note')}
+        >
+          <Text style={[
+            styles.tabButtonText,
+            activeTab === 'note' && styles.tabButtonTextActive
+          ]}>
+            Notes
+          </Text>
+        </TouchableOpacity>
       </View>
       
       {/* Table Header */}
@@ -241,7 +277,7 @@ export const MainScreen: React.FC = () => {
       />
       <TouchableOpacity
         style={styles.fab}
-        onPress={() => navigation.navigate('TaskDetails', { taskId: 'new' })}
+        onPress={() => navigation.navigate('TaskDetails', { taskId: 'new', type: activeTab })}
       >
         <Text style={styles.fabText}>+</Text>
       </TouchableOpacity>
@@ -370,5 +406,31 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#2E7D32',
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#F0F0F0',
+    marginHorizontal: 16,
+    marginVertical: 8,
+    borderRadius: 8,
+    padding: 4,
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  tabButtonActive: {
+    backgroundColor: '#4CAF50',
+  },
+  tabButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#666666',
+  },
+  tabButtonTextActive: {
+    color: '#FFFFFF',
   },
 }); 

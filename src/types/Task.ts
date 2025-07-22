@@ -1,8 +1,10 @@
 export type TaskType = 'seeding' | 'transplanting' | 'harvesting' | 'maintenance';
+export type ItemType = 'task' | 'note';
 
 export interface Task {
   id: string;
   title: string;
+  type: ItemType;
   cropId?: string;
   date: string;
   notes?: string;
@@ -14,6 +16,7 @@ export interface Task {
 export interface CreateTaskInput {
   id?: string;
   title: string;
+  type: ItemType;
   cropId?: string;
   date: string;
   notes?: string;

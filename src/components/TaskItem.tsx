@@ -27,24 +27,27 @@ const getTaskTypeColor = (type: TaskType): string => {
 export const TaskItem: React.FC<TaskItemProps> = ({ task, onPress, onToggleComplete }) => {
   const parsedDate = parse(task.date, 'MM/dd/yyyy', new Date());
   const formattedDate = format(parsedDate, 'MM/dd');
+  const isNote = task.type === 'note';
 
   return (
-    <View style={[styles.container, task.completed && styles.completedContainer]}>
+    <View style={[styles.container, task.completed && !isNote && styles.completedContainer]}>
       <View style={styles.row}>
-        <TouchableOpacity
-          style={[styles.leftSection]}
-          onPress={() => onToggleComplete(task)}
-        >
-          <View style={[styles.checkbox, task.completed && styles.checked]}>
-            {task.completed && <Text style={styles.checkmark}>✓</Text>}
-          </View>
-        </TouchableOpacity>
+        {!isNote && (
+          <TouchableOpacity
+            style={[styles.leftSection]}
+            onPress={() => onToggleComplete(task)}
+          >
+            <View style={[styles.checkbox, task.completed && styles.checked]}>
+              {task.completed && <Text style={styles.checkmark}>✓</Text>}
+            </View>
+          </TouchableOpacity>
+        )}
 
         <TouchableOpacity
           style={styles.dateContainer}
-          onPress={() => onToggleComplete(task)}
+          onPress={isNote ? () => onPress(task) : () => onToggleComplete(task)}
         >
-          <Text style={[styles.date, task.completed && styles.completedText]}>
+          <Text style={[styles.date, task.completed && !isNote && styles.completedText]}>
             {formattedDate}
           </Text>
         </TouchableOpacity>
@@ -53,7 +56,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({ task, onPress, onToggleCompl
           style={styles.vegetableContainer}
           onPress={() => onPress(task)}
         >
-          <Text style={[styles.vegetable, task.completed && styles.completedText]}>
+          <Text style={[styles.vegetable, task.completed && !isNote && styles.completedText]}>
             {task.title}
           </Text>
         </TouchableOpacity>
