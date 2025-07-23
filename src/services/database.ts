@@ -6,12 +6,15 @@ interface TaskRow {
   id: string;
   title: string;
   type: string;
-  cropId?: string;
+  cropId?: string | null;
   date: string;
-  notes?: string;
-  photos?: string; // JSON string in database
+  notes?: string | null;
+  photos?: string | null; // JSON string in database
   completed: number; // SQLite boolean as number
   year: number;
+  isTemplate?: number | null; // SQLite boolean as number
+  category?: string | null;
+  archived?: number | null; // SQLite boolean as number
 }
 import { initSettingsTable } from './settings';
 import { cleanupTaskPhotos } from './photoManager';
@@ -23,6 +26,33 @@ const generateUUID = () => {
     const v = c === 'x' ? r : (r & 0x3 | 0x8);
     return v.toString(16);
   });
+};
+
+// Check if a column exists in a table
+const columnExists = async (database: SQLite.SQLiteDatabase, tableName: string, columnName: string): Promise<boolean> => {
+  try {
+    const result = await database.getAllAsync<{name: string}>(
+      `PRAGMA table_info(${tableName})`
+    );
+    return result.some(column => column.name === columnName);
+  } catch (error) {
+    console.error('Error checking column existence:', error);
+    return false;
+  }
+};
+
+// Build query with conditional archived filter
+const buildTaskQuery = async (database: SQLite.SQLiteDatabase, baseQuery: string): Promise<string> => {
+  const hasArchived = await columnExists(database, 'tasks', 'archived');
+  if (hasArchived) {
+    // Add archived filter if column exists
+    if (baseQuery.includes('WHERE')) {
+      return baseQuery.replace('WHERE', 'WHERE (archived = 0 OR archived IS NULL) AND');
+    } else {
+      return baseQuery.replace('ORDER BY', 'WHERE (archived = 0 OR archived IS NULL) ORDER BY');
+    }
+  }
+  return baseQuery;
 };
 
 // Database name
@@ -74,6 +104,25 @@ export const initDatabase = async (): Promise<boolean> => {
       // Column already exists or other error - this is expected for existing tables
     }
 
+    // Add template columns to existing tasks table if they don't exist
+    try {
+      await database.execAsync(`ALTER TABLE tasks ADD COLUMN isTemplate INTEGER NOT NULL DEFAULT 0;`);
+    } catch (error) {
+      // Column already exists or other error - this is expected for existing tables
+    }
+
+    try {
+      await database.execAsync(`ALTER TABLE tasks ADD COLUMN category TEXT;`);
+    } catch (error) {
+      // Column already exists or other error - this is expected for existing tables
+    }
+
+    try {
+      await database.execAsync(`ALTER TABLE tasks ADD COLUMN archived INTEGER NOT NULL DEFAULT 0;`);
+    } catch (error) {
+      // Column already exists or other error - this is expected for existing tables
+    }
+
     //  // Create tables using execAsync for bulk operations
     //  await database.execAsync(`
     //   PRAGMA journal_mode = WAL;
@@ -114,21 +163,48 @@ export const createTask = async (task: CreateTaskInput): Promise<Task> => {
 
     console.log('Creating task:', task);
     
+    // Check which columns exist
+    const hasTemplate = await columnExists(database, 'tasks', 'isTemplate');
+    const hasCategory = await columnExists(database, 'tasks', 'category');
+    const hasArchived = await columnExists(database, 'tasks', 'archived');
+    
+    // Build dynamic query based on available columns
+    let columns = 'id, title, type, cropId, date, notes, photos, completed, year';
+    let placeholders = '?, ?, ?, ?, ?, ?, ?, ?, ?';
+    let values: any[] = [
+      taskId,
+      task.title,
+      task.type,
+      task.cropId || null,
+      task.date,
+      task.notes || null,
+      task.photos ? JSON.stringify(task.photos) : null,
+      task.completed ? 1 : 0,
+      year
+    ];
+    
+    if (hasTemplate) {
+      columns += ', isTemplate';
+      placeholders += ', ?';
+      values.push(task.isTemplate ? 1 : 0);
+    }
+    
+    if (hasCategory) {
+      columns += ', category';
+      placeholders += ', ?';
+      values.push(task.category || null);
+    }
+    
+    if (hasArchived) {
+      columns += ', archived';
+      placeholders += ', ?';
+      values.push(task.archived ? 1 : 0);
+    }
+    
     // Use runAsync for write operations
     const result = await database.runAsync(
-      `INSERT INTO tasks (id, title, type, cropId, date, notes, photos, completed, year)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        taskId,
-        task.title,
-        task.type,
-        task.cropId || null,
-        task.date,
-        task.notes || null,
-        task.photos ? JSON.stringify(task.photos) : null,
-        task.completed ? 1 : 0,
-        year
-      ]
+      `INSERT INTO tasks (${columns}) VALUES (${placeholders})`,
+      values
     );
     
     console.log('Task created:', result.lastInsertRowId);
@@ -141,7 +217,10 @@ export const createTask = async (task: CreateTaskInput): Promise<Task> => {
       notes: task.notes,
       photos: task.photos,
       completed: Boolean(task.completed),
-      year: task.year || new Date().getFullYear()
+      year: task.year || new Date().getFullYear(),
+      isTemplate: task.isTemplate,
+      category: task.category,
+      archived: task.archived
     };
   } catch (error) {
     console.error('Error creating task:', error);
@@ -154,17 +233,26 @@ export const getTasks = async (year: number): Promise<Task[]> => {
   try {
     const database = await getDb();
     
+    // Build query with conditional archived filter
+    const baseQuery = 'SELECT * FROM tasks WHERE year = ? ORDER BY date;';
+    const query = await buildTaskQuery(database, baseQuery);
+    
     // Use getAllAsync to get all results as an array
-    const tasks = await database.getAllAsync<TaskRow>(
-      'SELECT * FROM tasks WHERE year = ? ORDER BY date;',
-      [year]
-    );
+    const tasks = await database.getAllAsync<TaskRow>(query, [year]);
     
     return tasks.map(task => ({
-      ...task,
+      id: task.id,
+      title: task.title,
       type: (task.type || 'task') as ItemType,
+      cropId: task.cropId || undefined,
+      date: task.date,
+      notes: task.notes || undefined,
+      photos: task.photos ? JSON.parse(task.photos) as string[] : [],
       completed: Boolean(task.completed),
-      photos: task.photos ? JSON.parse(task.photos) as string[] : []
+      year: task.year,
+      isTemplate: Boolean(task.isTemplate || 0),
+      category: task.category as any,
+      archived: Boolean(task.archived || 0)
     }));
   } catch (error) {
     console.error('Error getting tasks:', error);
@@ -177,16 +265,25 @@ export const getTasksByType = async (year: number, type: ItemType): Promise<Task
   try {
     const database = await getDb();
     
-    const tasks = await database.getAllAsync<TaskRow>(
-      'SELECT * FROM tasks WHERE year = ? AND type = ? ORDER BY date;',
-      [year, type]
-    );
+    // Build query with conditional archived filter
+    const baseQuery = 'SELECT * FROM tasks WHERE year = ? AND type = ? ORDER BY date;';
+    const query = await buildTaskQuery(database, baseQuery);
+    
+    const tasks = await database.getAllAsync<TaskRow>(query, [year, type]);
     
     return tasks.map(task => ({
-      ...task,
+      id: task.id,
+      title: task.title,
       type: (task.type || 'task') as ItemType,
+      cropId: task.cropId || undefined,
+      date: task.date,
+      notes: task.notes || undefined,
+      photos: task.photos ? JSON.parse(task.photos) as string[] : [],
       completed: Boolean(task.completed),
-      photos: task.photos ? JSON.parse(task.photos) as string[] : []
+      year: task.year,
+      isTemplate: Boolean(task.isTemplate || 0),
+      category: task.category as any,
+      archived: Boolean(task.archived || 0)
     }));
   } catch (error) {
     console.error('Error getting tasks by type:', error);
@@ -199,16 +296,25 @@ export const getTasksByCropId = async (cropId: string): Promise<Task[]> => {
   try {
     const database = await getDb();
     
-    const tasks = await database.getAllAsync<TaskRow>(
-      'SELECT * FROM tasks WHERE cropId = ? ORDER BY date;',
-      [cropId]
-    );
+    // Build query with conditional archived filter
+    const baseQuery = 'SELECT * FROM tasks WHERE cropId = ? ORDER BY date;';
+    const query = await buildTaskQuery(database, baseQuery);
+    
+    const tasks = await database.getAllAsync<TaskRow>(query, [cropId]);
     
     return tasks.map(task => ({
-      ...task,
+      id: task.id,
+      title: task.title,
       type: (task.type || 'task') as ItemType,
+      cropId: task.cropId || undefined,
+      date: task.date,
+      notes: task.notes || undefined,
+      photos: task.photos ? JSON.parse(task.photos) as string[] : [],
       completed: Boolean(task.completed),
-      photos: task.photos ? JSON.parse(task.photos) as string[] : []
+      year: task.year,
+      isTemplate: Boolean(task.isTemplate || 0),
+      category: task.category as any,
+      archived: Boolean(task.archived || 0)
     }));
   } catch (error) {
     console.error('Error getting tasks by crop:', error);
@@ -224,6 +330,9 @@ export const updateTask = async (id: string, updates: UpdateTaskInput): Promise<
       .map(([key, value]) => {
         if (key === 'photos' && Array.isArray(value)) {
           return [key, JSON.stringify(value)];
+        }
+        if (key === 'completed' || key === 'isTemplate' || key === 'archived') {
+          return [key, value ? 1 : 0];
         }
         return [key, value];
       });
@@ -263,10 +372,18 @@ export const getTaskById = async (id: string): Promise<Task> => {
     }
     
     return {
-      ...task,
+      id: task.id,
+      title: task.title,
       type: (task.type || 'task') as ItemType,
+      cropId: task.cropId || undefined,
+      date: task.date,
+      notes: task.notes || undefined,
+      photos: task.photos ? JSON.parse(task.photos) as string[] : [],
       completed: Boolean(task.completed),
-      photos: task.photos ? JSON.parse(task.photos) as string[] : []
+      year: task.year,
+      isTemplate: Boolean(task.isTemplate || 0),
+      category: task.category as any,
+      archived: Boolean(task.archived || 0)
     };
   } catch (error) {
     console.error('Error getting task by id:', error);
@@ -292,6 +409,215 @@ export const deleteTask = async (id: string): Promise<void> => {
     );
   } catch (error) {
     console.error('Error deleting task:', error);
+    throw error;
+  }
+};
+
+// Get templates by category
+export const getTemplatesByCategory = async (category?: string): Promise<Task[]> => {
+  try {
+    const database = await getDb();
+    
+    let query = 'SELECT * FROM tasks WHERE isTemplate = 1';
+    const params: any[] = [];
+    
+    if (category) {
+      query += ' AND category = ?';
+      params.push(category);
+    }
+    
+    query += ' ORDER BY category, title';
+    
+    const tasks = await database.getAllAsync<TaskRow>(query, params);
+    
+    return tasks.map(task => ({
+      id: task.id,
+      title: task.title,
+      type: (task.type || 'task') as ItemType,
+      cropId: task.cropId || undefined,
+      date: task.date,
+      notes: task.notes || undefined,
+      photos: task.photos ? JSON.parse(task.photos) as string[] : [],
+      completed: Boolean(task.completed),
+      year: task.year,
+      isTemplate: Boolean(task.isTemplate || 0),
+      category: task.category as any,
+      archived: Boolean(task.archived || 0)
+    }));
+  } catch (error) {
+    console.error('Error getting templates by category:', error);
+    throw error;
+  }
+};
+
+// Get all available years that have tasks
+export const getAvailableYears = async (): Promise<number[]> => {
+  try {
+    const database = await getDb();
+    
+    const years = await database.getAllAsync<{ year: number }>(
+      'SELECT DISTINCT year FROM tasks ORDER BY year DESC'
+    );
+    
+    return years.map(row => row.year);
+  } catch (error) {
+    console.error('Error getting available years:', error);
+    throw error;
+  }
+};
+
+// Copy selected tasks from one year to another with selective criteria
+export interface CopyYearOptions {
+  fromYear: number;
+  toYear: number;
+  categories?: string[];
+  includeTemplates?: boolean;
+  includeNotes?: boolean;
+  resetCompletion?: boolean;
+}
+
+export const copySelectedTasks = async (options: CopyYearOptions): Promise<number> => {
+  try {
+    const database = await getDb();
+    
+    // Build query conditions
+    const conditions: string[] = ['year = ?'];
+    const params: any[] = [options.fromYear];
+    
+    if (options.categories && options.categories.length > 0) {
+      const placeholders = options.categories.map(() => '?').join(',');
+      conditions.push(`category IN (${placeholders})`);
+      params.push(...options.categories);
+    }
+    
+    if (options.includeTemplates === false) {
+      conditions.push('isTemplate = 0');
+    }
+    
+    if (options.includeNotes === false) {
+      conditions.push('type = "task"');
+    }
+    
+    const query = `SELECT * FROM tasks WHERE ${conditions.join(' AND ')} ORDER BY date`;
+    
+    const sourceTasks = await database.getAllAsync<TaskRow>(query, params);
+    
+    // Copy each task with adjusted date and new ID
+    let copiedCount = 0;
+    
+    for (const task of sourceTasks) {
+      const newId = generateUUID();
+      const yearDiff = options.toYear - options.fromYear;
+      
+      // Adjust the date by the year difference
+      let newDate = task.date;
+      try {
+        const originalDate = new Date(task.date);
+        if (!isNaN(originalDate.getTime())) {
+          const adjustedDate = new Date(originalDate);
+          adjustedDate.setFullYear(originalDate.getFullYear() + yearDiff);
+          newDate = adjustedDate.toISOString().split('T')[0];
+        }
+      } catch (error) {
+        // If date parsing fails, keep original date format but adjust manually
+        const dateMatch = task.date.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (dateMatch) {
+          const newYear = parseInt(dateMatch[1]) + yearDiff;
+          newDate = task.date.replace(/^\d{4}/, newYear.toString());
+        }
+      }
+      
+      await database.runAsync(
+        `INSERT INTO tasks (id, title, type, cropId, date, notes, photos, completed, year, isTemplate, category, archived)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          newId,
+          task.title,
+          task.type,
+          task.cropId || null,
+          newDate,
+          task.notes || null,
+          null, // Don't copy photos, start fresh
+          options.resetCompletion === false ? task.completed : 0,
+          options.toYear,
+          task.isTemplate || 0,
+          task.category || null,
+          0 // Don't copy archived status
+        ]
+      );
+      
+      copiedCount++;
+    }
+    
+    console.log(`Successfully copied ${copiedCount} tasks from ${options.fromYear} to ${options.toYear}`);
+    return copiedCount;
+  } catch (error) {
+    console.error('Error copying selected tasks:', error);
+    throw error;
+  }
+};
+
+// Archive notes from previous years
+export const archiveNotesFromYear = async (year: number): Promise<number> => {
+  try {
+    const database = await getDb();
+    
+    const result = await database.runAsync(
+      'UPDATE tasks SET archived = 1 WHERE year = ? AND type = "note" AND archived = 0',
+      [year]
+    );
+    
+    console.log(`Archived ${result.changes} notes from year ${year}`);
+    return result.changes || 0;
+  } catch (error) {
+    console.error('Error archiving notes:', error);
+    throw error;
+  }
+};
+
+// Get archived notes for a specific year
+export const getArchivedNotes = async (year: number): Promise<Task[]> => {
+  try {
+    const database = await getDb();
+    
+    const tasks = await database.getAllAsync<TaskRow>(
+      'SELECT * FROM tasks WHERE year = ? AND type = "note" AND archived = 1 ORDER BY date',
+      [year]
+    );
+    
+    return tasks.map(task => ({
+      id: task.id,
+      title: task.title,
+      type: (task.type || 'task') as ItemType,
+      cropId: task.cropId || undefined,
+      date: task.date,
+      notes: task.notes || undefined,
+      photos: task.photos ? JSON.parse(task.photos) as string[] : [],
+      completed: Boolean(task.completed),
+      year: task.year,
+      isTemplate: Boolean(task.isTemplate || 0),
+      category: task.category as any,
+      archived: Boolean(task.archived || 0)
+    }));
+  } catch (error) {
+    console.error('Error getting archived notes:', error);
+    throw error;
+  }
+};
+
+// Unarchive notes
+export const unarchiveNote = async (id: string): Promise<void> => {
+  try {
+    const database = await getDb();
+    
+    await database.runAsync(
+      'UPDATE tasks SET archived = 0 WHERE id = ?',
+      [id]
+    );
+    
+    console.log(`Unarchived note ${id}`);
+  } catch (error) {
+    console.error('Error unarchiving note:', error);
     throw error;
   }
 }; 

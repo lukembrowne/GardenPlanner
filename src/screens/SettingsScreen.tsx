@@ -21,6 +21,7 @@ type RootStackParamList = {
   SettingsScreen: undefined;
   ImportExport: undefined;
   Backup: undefined;
+  NewYearSetup: { currentYear: number };
 };
 
 type SettingsScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'SettingsScreen'>;
@@ -198,14 +199,30 @@ export const SettingsScreen: React.FC = () => {
           <TextInput
             style={styles.input}
             value={settings.currentYear.toString()}
+            onBlur={async () => {
+              // Save when user finishes editing
+              const year = parseInt(settings.currentYear.toString());
+              if (!isNaN(year) && year >= 1900 && year <= 2100) {
+                try {
+                  await saveSettings(settings);
+                } catch (error) {
+                  console.error('Error saving year setting:', error);
+                  Alert.alert('Error', 'Failed to save year setting');
+                }
+              }
+            }}
             onChangeText={(text) => {
+              // Only update local state while typing
               const year = parseInt(text);
-              if (!isNaN(year)) {
-                setSettings(prev => ({ ...prev, currentYear: year }));
+              if (!isNaN(year) || text === '') {
+                setSettings(prev => ({ ...prev, currentYear: year || new Date().getFullYear() }));
               }
             }}
             keyboardType="numeric"
           />
+          <Text style={styles.helpText}>
+            Changes to the year are saved automatically. This controls which year's tasks are shown in the main screen.
+          </Text>
         </View>
 
         <TouchableOpacity
@@ -216,7 +233,17 @@ export const SettingsScreen: React.FC = () => {
             Copy Schedule from Previous Year
           </Text>
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.newYearButton}
+          onPress={() => navigation.navigate('NewYearSetup', { currentYear: settings.currentYear })}
+        >
+          <Text style={styles.newYearButtonText}>
+            🎯 New Year Setup (Advanced)
+          </Text>
+        </TouchableOpacity>
       </View>
+
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Notifications</Text>
@@ -417,6 +444,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   copyButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  newYearButton: {
+    backgroundColor: '#2196F3',
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  newYearButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',

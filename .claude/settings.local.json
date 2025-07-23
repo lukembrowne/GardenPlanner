@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(npx expo install:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(npm run typescript:*)"
     ],
     "deny": []
   }

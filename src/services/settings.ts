@@ -122,22 +122,41 @@ export const copyYearSchedule = async (fromYear: number, toYear: number): Promis
   try {
     const database = await getDb();
     
-    // First, get all tasks from the source year
+    // First, get all tasks from the source year using correct column names
     const sourceTasks = await database.getAllAsync<{
-      vegetable: string;
-      start_date: string;
+      title: string;
+      date: string;
       type: string;
       notes: string | null;
       completed: number;
-    }>('SELECT vegetable, start_date, type, notes, completed FROM tasks WHERE year = ?;', [fromYear]);
+      cropId: string | null;
+    }>('SELECT title, date, type, notes, completed, cropId FROM tasks WHERE year = ?;', [fromYear]);
     
-    // Then insert each task with a new ID and the target year
+    // Then insert each task with a new ID and the target year, adjusting dates
     for (const task of sourceTasks) {
       const newId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+      
+      // Adjust the date by the year difference
+      let newDate = task.date;
+      try {
+        const originalDate = new Date(task.date);
+        if (!isNaN(originalDate.getTime())) {
+          const adjustedDate = new Date(originalDate);
+          adjustedDate.setFullYear(toYear);
+          newDate = adjustedDate.toISOString().split('T')[0];
+        }
+      } catch (error) {
+        // If date parsing fails, keep original date format but adjust manually
+        const dateMatch = task.date.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (dateMatch) {
+          newDate = task.date.replace(/^\d{4}/, toYear.toString());
+        }
+      }
+      
       await database.runAsync(
-        `INSERT INTO tasks (id, vegetable, start_date, type, notes, completed, year)
-         VALUES (?, ?, ?, ?, ?, ?, ?);`,
-        [newId, task.vegetable, task.start_date, task.type, task.notes, task.completed, toYear]
+        `INSERT INTO tasks (id, title, date, type, notes, completed, year, cropId)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
+        [newId, task.title, newDate, task.type, task.notes, task.completed, toYear, task.cropId]
       );
     }
     

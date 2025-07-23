@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -33,9 +33,10 @@ export const MainScreen: React.FC = () => {
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [activeTab, setActiveTab] = useState<ItemType>('task');
 
-  const loadTasks = async () => {
+  const loadTasks = async (year?: number) => {
     try {
-      const loadedTasks = await getTasks(currentYear);
+      const yearToUse = year || currentYear;
+      const loadedTasks = await getTasks(yearToUse);
       setTasks(loadedTasks);
     } catch (error) {
       console.error('Error loading tasks:', error);
@@ -45,8 +46,9 @@ export const MainScreen: React.FC = () => {
   const loadSettings = async () => {
     try {
       const settings = await getSettings();
+      console.log('Loading settings, currentYear:', settings.currentYear);
       setCurrentYear(settings.currentYear);
-      await loadTasks();
+      await loadTasks(settings.currentYear);
     } catch (error) {
       console.error('Error loading settings:', error);
     }
@@ -65,6 +67,14 @@ export const MainScreen: React.FC = () => {
       setupScreen();
     }, [])
   );
+
+  // Reload tasks when currentYear changes
+  useEffect(() => {
+    console.log('currentYear changed to:', currentYear);
+    if (currentYear) {
+      loadTasks();
+    }
+  }, [currentYear]);
 
   const handleRefresh = async () => {
     setRefreshing(true);

@@ -11,7 +11,12 @@ export interface Task {
   photos?: string[];
   completed: boolean;
   year: number;
+  isTemplate?: boolean;
+  category?: TaskCategory;
+  archived?: boolean;
 }
+
+export type TaskCategory = 'seeding' | 'maintenance' | 'harvesting' | 'planning' | 'other';
 
 export interface CreateTaskInput {
   id?: string;
@@ -23,6 +28,9 @@ export interface CreateTaskInput {
   photos?: string[];
   completed?: boolean;
   year?: number;
+  isTemplate?: boolean;
+  category?: TaskCategory;
+  archived?: boolean;
 }
 
 export interface UpdateTaskInput extends Partial<CreateTaskInput> {

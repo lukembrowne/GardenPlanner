@@ -13,6 +13,7 @@ import { SettingsScreen } from './src/screens/SettingsScreen';
 import { CropsListScreen } from './src/screens/CropsListScreen';
 import { CropEditScreen } from './src/screens/CropEditScreen';
 import { BackupScreen } from './src/screens/BackupScreen';
+import { NewYearSetupScreen } from './src/screens/NewYearSetupScreen';
 import { initDatabase } from './src/services/database';
 import { initCropDatabase } from './src/services/cropDatabase';
 import { registerForPushNotifications, scheduleWeeklyNotification } from './src/services/notifications';
@@ -96,6 +97,14 @@ function SettingsStack() {
         component={BackupScreen}
         options={{ 
           title: 'Database Backup',
+        }}
+      />
+      
+      <Stack.Screen 
+        name="NewYearSetup" 
+        component={NewYearSetupScreen}
+        options={{ 
+          title: 'New Year Setup',
         }}
       />
     </Stack.Navigator>
